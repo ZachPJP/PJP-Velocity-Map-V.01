@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Bin Velocity map V2</title>
+<style>
+  :root {
+    --bg: #0b0f14;
+    --panel-bg: rgba(20, 26, 34, 0.92);
+    --panel-border: #26313d;
+    --text: #e6edf3;
+    --text-dim: #8b98a5;
+    --accent: #3fa9f5;
+    --accent2: #f5a623;
+    --danger: #ff4d4f;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: var(--bg); color: var(--text); overflow: hidden;
+  }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; touch-action: none; }
+
+  .panel {
+    position: absolute;
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
+
+  #title-panel {
+    top: env(safe-area-inset-top, 12px);
+    left: 12px;
+    max-width: 260px;
+  }
+  #title-panel p { font-size: 11px; color: var(--text-dim); margin: 0; }
+  #title-panel .panel-title { font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--text); font-weight: 600; }
+
+  .panel-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; cursor: move; user-select: none; margin-bottom: 8px;
+  }
+  .panel-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);
+  }
+  .collapse-btn {
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 12px; padding: 2px 6px; line-height: 1; flex-shrink: 0;
+  }
+  .collapse-btn:hover { color: var(--text); }
+  .panel.collapsed .panel-body { display: none; }
+  .panel.dragging { opacity: 0.92; box-shadow: 0 12px 32px rgba(0,0,0,0.5); }
+
+  #levels-panel {
+    top: calc(env(safe-area-inset-top, 12px) + 80px);
+    left: 12px;
+    width: 250px;
+    max-height: 72vh;
+    overflow-y: auto;
+  }
+  .level-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 0; font-size: 13px;
+  }
+  .level-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+  .level-row .count { color: var(--text-dim); font-size: 11px; }
+  .section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-dim); margin: 10px 0 6px 0;
+  }
+  #aisle-list { display: grid; grid-auto-flow: column; column-gap: 16px; }
+  .level-actions { display: flex; gap: 6px; margin-bottom: 8px; }
+  .btn {
+    background: #1c2733; border: 1px solid #34424f; color: #eef2f6;
+    border-radius: 6px; padding: 5px 9px; font-size: 11px; cursor: pointer;
+  }
+  .btn:hover { background: #26333f; }
+  .btn.active { background: var(--accent); border-color: var(--accent); color: #04121f; }
+
+  #day-panel {
+    top: env(safe-area-inset-top, 12px);
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+  #day-buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 560px; }
+
+  #search-panel {
+    top: env(safe-area-inset-top, 12px);
+    right: 12px;
+    width: 240px;
+  }
+  #search-panel input {
+    width: 100%; box-sizing: border-box;
+    background: #101820; border: 1px solid #34424f; color: #eef2f6;
+    border-radius: 6px; padding: 8px 10px; font-size: 13px; margin-bottom: 6px;
+  }
+  #search-panel input::placeholder { color: #8b98a5; }
+  #search-results { max-height: 180px; overflow-y: auto; }
+  #item-search { margin-top: 4px; }
+  #item-search-results { max-height: 180px; overflow-y: auto; }
+  .result-row {
+    padding: 6px 8px; font-size: 12px; border-radius: 6px; cursor: pointer;
+    display: flex; justify-content: space-between; gap: 8px;
+  }
+  .result-row:hover { background: #1c2733; }
+  .result-row .lvl-badge {
+    background: #263241; color: var(--accent); border-radius: 4px; padding: 0 6px; font-size: 10px;
+  }
+
+  .rack-toggle-row {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 12px; margin-bottom: 10px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  #top-items-panel {
+    bottom: calc(env(safe-area-inset-bottom, 12px) + 56px);
+    right: 12px;
+    width: 230px;
+    max-height: 46vh;
+    overflow-y: auto;
+  }
+  .top-item-row {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-size: 12px; padding: 5px 0; border-bottom: 1px solid #1c2733;
+    cursor: pointer;
+  }
+  .top-item-row:last-child { border-bottom: none; }
+  .top-item-row:hover { color: var(--accent); }
+  .top-item-row .ti-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+  .top-item-row .ti-qty { color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  #trend-panel {
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 560px; max-width: 92vw;
+    z-index: 30;
+  }
+  .trend-close {
+    background: none; border: none; color: var(--text-dim);
+    font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; flex-shrink: 0;
+  }
+  .trend-close:hover { color: var(--text); }
+  #trend-panel .trend-title-text { font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--text); }
+  .trend-sub { font-size: 11px; color: var(--text-dim); margin: 0 0 10px 0; }
+  .trend-row { margin-bottom: 12px; }
+  .trend-row-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .trend-svg-wrap { background: #0f151b; border-radius: 6px; padding: 6px 8px; }
+
+  #legend-panel {
+    bottom: calc(env(safe-area-inset-bottom, 12px) + 12px);
+    left: 12px;
+    max-width: 70vw;
+  }
+  #legend-body {
+    display: flex; gap: 12px; align-items: center; font-size: 11px; flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: none; border: 1px solid var(--panel-border); border-radius: 6px;
+    padding: 3px 7px; font-size: 11px; color: var(--text); cursor: pointer;
+    font-family: inherit;
+  }
+  .legend-chip:hover { border-color: var(--accent); }
+  .legend-chip.off { opacity: 0.35; text-decoration: line-through; }
+  .legend-reset { font-size: 11px; color: var(--accent); background: none; border: none; cursor: pointer; padding: 3px 4px; font-family: inherit; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; }
+
+  #tooltip {
+    position: absolute; pointer-events: none;
+    background: rgba(10, 14, 18, 0.95); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 8px 12px; font-size: 12px; color: var(--text);
+    display: none; z-index: 20; max-width: 260px;
+  }
+  #tooltip .t-label { font-weight: 600; }
+  #tooltip .t-sub { color: var(--text-dim); font-size: 11px; }
+
+  #loading {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    flex-direction: column; gap: 10px; background: var(--bg); z-index: 50;
+  }
+  #loading .spinner {
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 3px solid #223040; border-top-color: var(--accent);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { color: var(--text-dim); font-size: 13px; }
+
+  #stats-footer {
+    bottom: calc(env(safe-area-inset-bottom, 12px) + 12px);
+    right: 12px;
+    font-size: 11px; color: var(--text-dim); text-align: right;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f6f8; --panel-bg: rgba(255,255,255,0.92); --panel-border: #dde3e9;
+      --text: #1b232c; --text-dim: #62707d;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b0f14; --panel-bg: rgba(20, 26, 34, 0.92); --panel-border: #26313d;
+    --text: #e6edf3; --text-dim: #8b98a5;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="loading"><div class="spinner"></div><p>Loading warehouse structure…</p></div>
+
+  <div class="panel" id="title-panel">
+    <div class="panel-header">
+      <span class="panel-title">Warehouse 3D Map</span>
+      <button class="collapse-btn" type="button">▾</button>
+    </div>
+    <div class="panel-body">
+      <p>Drag to orbit · scroll to zoom · click a bin to select</p>
+    </div>
+  </div>
+
+  <div class="panel" id="day-panel">
+    <div class="panel-header">
+      <span class="panel-title">Date - Velocity View</span>
+      <button class="collapse-btn" type="button">▾</button>
+    </div>
+    <div class="panel-body">
+      <div id="day-buttons"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="levels-panel">
+    <div class="panel-header">
+      <span class="panel-title">Levels &amp; Aisles</span>
+      <button class="collapse-btn" type="button">▾</button>
+    </div>
+    <div class="panel-body">
+      <label class="rack-toggle-row">
+        <input type="checkbox" id="rack-toggle" checked />
+        Show racking
+      </label>
+      <div class="section-label">Levels</div>
+      <div class="level-actions">
+        <button class="btn" id="show-all">Show all</button>
+        <button class="btn" id="hide-all">Hide all</button>
+      </div>
+      <div id="level-list"></div>
+      <div class="section-label">Aisles</div>
+      <div class="level-actions">
+        <button class="btn" id="aisle-show-all">Show all</button>
+        <button class="btn" id="aisle-hide-all">Hide all</button>
+      </div>
+      <div id="aisle-list"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="search-panel">
+    <div class="panel-header">
+      <span class="panel-title">Search</span>
+      <button class="collapse-btn" type="button">▾</button>
+    </div>
+    <div class="panel-body">
+      <input type="text" id="bin-search" placeholder="Search bin location…" autocomplete="off" />
+      <div id="search-results"></div>
+      <input type="text" id="item-search" placeholder="Search item number…" autocomplete="off" />
+      <div id="item-search-results"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="legend-panel">
+    <div class="panel-header">
+      <span class="panel-title">Legend</span>
+      <button class="collapse-btn" type="button">▾</button>
+    </div>
+    <div class="panel-body" id="legend-body"></div>
+  </div>
+
+  <div class="panel" id="top-items-panel">
+    <div class="panel-header">
+      <span class="panel-title">Top Items by Quantity</span>
+      <button class="collapse-btn" type="button">▾</button>
+    </div>
+    <div class="panel-body">
+      <div id="top-items-list"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="trend-panel" style="display:none">
+    <div class="panel-header">
+      <span class="panel-title trend-title-text" id="trend-title">Trend</span>
+      <button class="trend-close" id="trend-close" type="button">×</button>
+    </div>
+    <div class="panel-body" id="trend-content"></div>
+  </div>
+
+  <div class="panel" id="stats-footer"></div>
+
+  <div id="tooltip"></div>
+</div>
+
+<script src="data/levels.js"></script>
+<script src="data/velocity.js"></script>
+<script src="data/iteminfo.js"></script>
+<script src="data/trend.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="main.js"></script>
+</body>
+</html>
